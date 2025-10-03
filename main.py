@@ -77,7 +77,7 @@ async def kick(interaction: discord.Interaction,member: discord.Member,reason: s
 
     success_embed=discord.Embed(
         title="Member Kicked",
-        type='rich',
+        type='video',
         description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** {reason}",
         color=discord.Color.green()
     )
