@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 import random
-import time
+from discord import app_commands
 
 description = """An example bot to showcase the discord.ext.commands extension
 module.
@@ -12,14 +12,17 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-bot = commands.Bot(command_prefix='?', description=description, intents=intents)
+bot = commands.Bot(command_prefix='.', description=description, intents=intents)
 
+#when bot online
 @bot.event
 async def on_ready():
+    await bot.tree.sync()
     assert bot.user is not None
     print(f'Logged in as {bot.user} (ID: {bot.user.id})')
     print('------')
 
+#member join checking
 @bot.command()
 async def joined(ctx, member: discord.Member):
     if member.joined_at is None:
@@ -27,18 +30,93 @@ async def joined(ctx, member: discord.Member):
     else:
         await ctx.send(f'{member} joined {discord.utils.format_dt(member.joined_at)}')
 
-@bot.group()
-async def cool(ctx):
-    if ctx.invoked_subcommand is None:
-        await ctx.send(f'No, {ctx.subcommand_passed} is not cool')
+#setting mod role so who can use moderation command
+mod_roles = {}  # key: guild.id, value: role.id
 
-@cool.command(name='bot')
-async def _bot(ctx):
-    await ctx.send('Yes, the bot is cool.')
+#settings group
+settings = app_commands.Group(name="settings", description="Config the bot")
 
-@bot.command()
-async def greatest_captain(ctx):
-    await ctx.send(f"The Greatest captain is always <@1014804950167080960>")
+@settings.command(name='set-mod-role', description='Set mod role to specify which role can use this bot [Only server owner can run it]')
+async def set_mod_role(interaction: discord.Interaction, role: discord.Role):
+    global mod_roles
+    try:
+        owner = interaction.guild.owner.id
+        if interaction.user.id == owner:
+            mod_roles[interaction.guild.id] = role.id
+            await interaction.response.send_message(f"<@&{role.id}> is set as mod role")
+        else:
+            await interaction.response.send_message("You are not server owner!")
+    except Exception as e:
+        await interaction.response.send_message('Provide the role')
+
+#show mod role
+@settings.command(name='show-mod-role',description='Shows the current mod role',)
+async def show_mod_role(interaction: discord.Interaction):
+    role_id = mod_roles.get(interaction.guild.id)
+    if role_id:
+        await interaction.response.send_message(f'Current Moderator role is <@&{role_id}>')
+    else:
+        await interaction.response.send_message("No mod role set for this server.")
+
+#adding the group
+bot.tree.add_command(settings)
+
+#if invoked without subcommand/help
+@bot.tree.command()
+async def setting(interaction: discord.Interaction):
+    await interaction.response.send_message("Choose The category: Set_admin_role, show_admin_role")
+
+# a easter egg?
+@bot.tree.command(name='captain')
+async def greatest_captain(interaction:discord.Interaction):
+    await interaction.response.send_message(f"The Greatest captain is always <@1014804950167080960>")
+
+
+@bot.tree.command(name='kick',description='Kick the member from the server')
+async def kick(interaction: discord.Interaction,member: discord.Member,reason: str):
+
+    success_embed=discord.Embed(
+        title="Member Kicked",
+        type='rich',
+        description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** {reason}",
+        color=discord.Color.green()
+    )
+
+    role_id = mod_roles.get(interaction.guild.id)
+
+    if role_id is not None: 
+        try:
+            mod_role = interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
+                await member.kick(reason=reason)
+                await interaction.response.send_message(f"{member.mention} has been kicked!",embed=success_embed)
+            else:
+                await interaction.response.send_message(f"You do not have Moderator role to use this bot!")
+        except:
+            await interaction.response.send_message(f"My role is too below to kick {member.mention} or you don't have permission to kick {member.mention}")
+    else:
+        await interaction.response.send_message("Ask server owner to set mod role first!")
+
+
+# ---------- START OF DISCONTINUED SECTION ------------
+#bot choices
+class bot_turn(discord.ui.View):
+    
+    async def choose(self, channel):
+
+        option=random.randint(1,2)
+        weapon=random.randint(1,2)
+
+        opt=['Pickaxe','Sword','Axe']
+        wpt=['Wooden','Stone','Iron','Gold','Diamond','Netherite']
+
+        if option == 1:
+            if (weapon ==1) or (weapon==2):
+                await channel.send("HAAAAA")
+        else:
+            await channel.send('idk')
+        
+
 
 # player choices
 class options(discord.ui.View):
@@ -85,11 +163,15 @@ class PickaxeOptionsView(discord.ui.View):
         embed = discord.Embed(
             color=discord.Color.green(),
             title='You chose Wooden Pickaxe!',
-            description="You decreased the bot's health by 2!",
+            description=f"""You decreased the bot's health by 2!\n Current HP: <@{interaction.user.id}> HP is {player} Bot's HP is {bot_hp}""",
         )
 
         embed.set_footer(text='Made by FriendSMP75 Staff team', icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
         await interaction.response.send_message(embed=embed)
+        
+
+        botturn = bot_turn()
+        await botturn.choose(interaction.channel)
 
     #stone
     @discord.ui.button(label='Stone Pickaxe', style=discord.ButtonStyle.primary, custom_id='stone_pickaxe_btn')
@@ -101,11 +183,12 @@ class PickaxeOptionsView(discord.ui.View):
         embed = discord.Embed(
             color=discord.Color.green(),
             title='You chose Stone Pickaxe!',
-            description="You decreased the bot's health by 2!",
+            description=f"""You decreased the bot's health by 2!\n Current HP: <@{interaction.user.id}> HP is {player} Bot's HP is {bot_hp}""",
         )
 
         embed.set_footer(text='Made by FriendSMP75 Staff team', icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
         await interaction.response.send_message(embed=embed)
+        
 
     #iron
     @discord.ui.button(label='Iron Pickaxe', style=discord.ButtonStyle.primary, custom_id='iron_pickaxe_btn')
@@ -114,8 +197,8 @@ class PickaxeOptionsView(discord.ui.View):
         bot_hp -= 3
         embed = discord.Embed(
             color=discord.Color.green(),
-            title='You chose Wooden Pickaxe!',
-            description="You decreased the bot's health by 3!",
+            title='You chose Iron Pickaxe!',
+            description=f"""You decreased the bot's health by 3!\n Current HP: <@{interaction.user.id}> HP is {player} Bot's HP is {bot_hp}""",
         )
         embed.set_footer(text='Made by FriendSMP75 Staff team', icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
         await interaction.response.send_message(embed=embed)
@@ -128,8 +211,8 @@ class PickaxeOptionsView(discord.ui.View):
         bot_hp -= 2
         embed = discord.Embed(
             color=discord.Color.green(),
-            title='You chose Wooden Pickaxe!',
-            description="You decreased the bot's health by 2!",
+            title='You chose Gold Pickaxe!',
+            description=f"""You decreased the bot's health by 2!\n Current HP: <@{interaction.user.id}> HP is {player} Bot's HP is {bot_hp}""",
         )
         embed.set_footer(text='Made by FriendSMP75 Staff team', icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
         await interaction.response.send_message(embed=embed)
@@ -142,8 +225,8 @@ class PickaxeOptionsView(discord.ui.View):
         bot_hp -= 5
         embed = discord.Embed(
             color=discord.Color.green(),
-            title='You chose Wooden Pickaxe!',
-            description="You decreased the bot's health by 5!",
+            title='You chose Diamond Pickaxe!',
+            description=f"""You decreased the bot's health by 5!\n Current HP: <@{interaction.user.id}> HP is {player} Bot's HP is {bot_hp}""",
         )
         embed.set_footer(text='Made by FriendSMP75 Staff team', icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
         await interaction.response.send_message(embed=embed)
@@ -156,19 +239,21 @@ class PickaxeOptionsView(discord.ui.View):
         bot_hp -= 6
         embed = discord.Embed(
             color=discord.Color.green(),
-            title='You chose Wooden Pickaxe!',
-            description="You decreased the bot's health by 6!",
+            title='You chose Netherite Pickaxe!',
+            description=f"""You decreased the bot's health by 6!\n Current HP: <@{interaction.user.id}> HP is {player} Bot's HP is {bot_hp}""",
         )
         embed.set_footer(text='Made by FriendSMP75 Staff team', icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
         await interaction.response.send_message(embed=embed)
 
-        
+
 #HPcount for players and bots
 player=20
 bot_hp=20
 
 @bot.command()
 async def start(ctx):
+    player=20
+    bot_hp=20
     #embed section
     embed = discord.Embed(
         title='Welcome to the Game!',
@@ -177,13 +262,15 @@ async def start(ctx):
         color=discord.Color.green(),
     )
 
-    embed.set_author(name=bot.user.display_name)
+    embed.set_author(name='Discontinued')
     embed.set_footer(text='Made by FriendSMP75 Staff team',icon_url='https://i.ibb.co/Jw8DHv8Q/servercurrent.jpg')
 
     # response for selecting buttons
     view = options()
     await ctx.send(view=view, embed=embed)
+#------------------ END OF DISCONTINUED SECTION -----------------------
 
+#reading bot token
 with open('bot.txt') as f:
     a=f.read()
     bot.run(a)
