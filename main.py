@@ -32,6 +32,8 @@ async def joined(ctx, member: discord.Member):
 
 #setting mod role so who can use moderation command
 mod_roles = {}  # key: guild.id, value: role.id
+logging_channel = {} 
+
 
 #settings group
 settings = app_commands.Group(name="settings", description="Config the bot")
@@ -58,6 +60,46 @@ async def show_mod_role(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("No mod role set for this server.")
 
+#set logging channel
+@settings.command(name='set-logging-channel',description='Shows logs of every moderation action')
+async def logging(interaction: discord.Interaction,channel: discord.TextChannel):
+    
+
+    #logging set message for confirmation
+    logging_send_embed = discord.Embed(
+        title="Channel set message",
+        description=f'This channel is set as logging channel for moderation by {interaction.user.mention}',
+        color=discord.Color.blue(),
+    )
+    author = interaction.user.name
+    logging_send_embed.set_author(name=interaction.user.name)
+    logging_send_embed.set_footer(icon_url=interaction.guild.icon,text=interaction.guild.name)
+
+    #failed to set logging channel
+    fail_embed = discord.Embed(
+        title='LOGGING CHANNEL SET FAILED',
+        description="Logging channel can't be set by you, because you did not have Moderator role!",
+        color=discord.Color.dark_red(),
+    )
+    fail_embed.set_footer(icon_url=interaction.guild.icon,text=interaction.guild.name)
+
+    role_id = mod_roles.get(interaction.guild.id)
+    if any(role.id == role_id for role in interaction.user.roles):
+        logging_channel[interaction.guild.id] = channel.id
+
+        #after logging channel is set
+        success_embed= discord.Embed(
+            title='Logging channel set!',
+            description=f'Logging channel is set to <#{logging_channel.get(interaction.guild.id)}>',
+            color=discord.Color.green(),
+        )
+        success_embed.set_footer(icon_url=interaction.guild.icon,text=interaction.guild.name)
+
+        await interaction.response.send_message(embed=success_embed)
+        await channel.send(embed=logging_send_embed)
+    else:
+        await interaction.response.send_message(embed=fail_embed)
+        
 #adding the group
 bot.tree.add_command(settings)
 
@@ -71,17 +113,64 @@ async def setting(interaction: discord.Interaction):
 async def greatest_captain(interaction:discord.Interaction):
     await interaction.response.send_message(f"The Greatest captain is always <@1014804950167080960>")
 
+#kick command 
 
 @bot.tree.command(name='kick',description='Kick the member from the server')
 async def kick(interaction: discord.Interaction,member: discord.Member,reason: str):
 
     success_embed=discord.Embed(
         title="Member Kicked",
-        type='video',
-        description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** {reason}",
+        description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** *{reason}*",
+        color=discord.Color.green(),
+        timestamp=discord.datetime.now()
+    )
+
+    info_embed=discord.Embed(
+        title=f"Kicked from {interaction.guild.name}",
+        description=f'You have been kicked from {interaction.guild.name}\n**Reason:** *{reason}*',
+        color=discord.Color.blue(),
+        timestamp=discord.datetime.now(),
+    )
+    info_embed.set_footer(icon_url=interaction.guild.icon,text=interaction.guild.name)
+
+    role_id = mod_roles.get(interaction.guild.id)
+
+    if role_id is not None: 
+        try:
+            if any(role.id == role_id for role in interaction.user.roles):
+                try:
+                    await member.send(embed=info_embed)
+                except Exception as e:
+                    await interaction.followup.send("Failed to send dm info, Forbidden 403")
+
+                await member.kick(reason=reason)
+                await interaction.response.send_message(f"{member.mention} has been kicked!",embed=success_embed)
+                
+                if logging_channel!=None:
+                    channel=bot.get_channel(logging_channel.get(interaction.guild.id))
+                    await channel.send(f"{member.mention} is kicked",embed=success_embed)
+            else:
+                await interaction.response.send_message(f"You do not have Moderator role to use this bot!")
+        except:
+            await interaction.followup.send(f"My role is too below to kick {member.mention} or you don't have permission to kick {member.mention}")
+    else:
+        await interaction.response.send_message("Ask server owner to set mod role first!")
+
+
+# Slient command groups and commands
+
+slient = app_commands.Group(name='slient',description='Kick the member from the server')
+
+@slient.command(name='kick',description='Kick member without sending info to them')
+async def slient_kick(interaction: discord.Interaction,member: discord.Member, reason: str):
+
+    success_embed=discord.Embed(
+        title="Member Kicked [Slient]",
+        description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** *{reason}*",
         color=discord.Color.green()
     )
 
+    #get role id from mod_roles dict
     role_id = mod_roles.get(interaction.guild.id)
 
     if role_id is not None: 
@@ -90,13 +179,16 @@ async def kick(interaction: discord.Interaction,member: discord.Member,reason: s
             if mod_role in interaction.user.roles:
                 await member.kick(reason=reason)
                 await interaction.response.send_message(f"{member.mention} has been kicked!",embed=success_embed)
-            else:
-                await interaction.response.send_message(f"You do not have Moderator role to use this bot!")
+                if logging_channel!=None:
+                    channel=bot.get_channel(logging_channel.get(interaction.guild.id))
+                    await channel.send(f"{member.mention} is kicked",embed=success_embed)
         except:
-            await interaction.response.send_message(f"My role is too below to kick {member.mention} or you don't have permission to kick {member.mention}")
+            await interaction.response.send_message("You do not have Moderator role!")
     else:
-        await interaction.response.send_message("Ask server owner to set mod role first!")
+        await interaction.response.send_message("Ask Server owner to set mod role first!")
 
+#adding group
+bot.tree.add_command(slient)
 
 # ---------- START OF DISCONTINUED SECTION ------------
 #bot choices
