@@ -84,7 +84,8 @@ async def logging(interaction: discord.Interaction,channel: discord.TextChannel)
     fail_embed.set_footer(icon_url=interaction.guild.icon,text=interaction.guild.name)
 
     role_id = mod_roles.get(interaction.guild.id)
-    if any(role.id == role_id for role in interaction.user.roles):
+    mod_role = interaction.guild.get_role(role_id)
+    if mod_role in interaction.user.roles:
         logging_channel[interaction.guild.id] = channel.id
 
         #after logging channel is set
@@ -137,7 +138,8 @@ async def kick(interaction: discord.Interaction,member: discord.Member,reason: s
 
     if role_id is not None: 
         try:
-            if any(role.id == role_id for role in interaction.user.roles):
+            mod_role = interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
                 try:
                     await member.send(embed=info_embed)
                 except Exception as e:
@@ -156,6 +158,42 @@ async def kick(interaction: discord.Interaction,member: discord.Member,reason: s
     else:
         await interaction.response.send_message("Ask server owner to set mod role first!")
 
+#Ban command
+@bot.tree.command(name='ban',description='Ban the user from the server')
+async def ban(interaction: discord.Interaction,member: discord.Member,reason: str):
+    role_id = mod_roles.get(interaction.guild.id)
+
+    success_embed = discord.Embed(
+        title='Member Banned',
+        description=f'{member.mention} is Banned by {interaction.user}\n\n**Reason:** *{reason}*',
+        color=discord.Color.green()
+    )
+    success_embed.set_footer(text=f'User id: {member.id} • Banned at {discord.datetime.now()}')
+
+    info_embed=discord.Embed(
+        title=f'Banned from {interaction.guild.name}',
+        description=f"You have been banned from {interaction.guild.name}\n\n**Reason:** *{reason}*",
+        color=discord.Color.blue(),
+        timestamp=discord.datetime.now()
+    )
+    info_embed.set_footer(icon_url=interaction.guild.icon,text=f"{interaction.guild.name}")
+
+    if role_id is not None:
+        try:
+            mod_role= interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
+                try:
+                    await member.send(embed=info_embed)
+                except Exception as e:
+                    await interaction.followup.send("Failed to send dm info, Forbidden 403")
+                await member.ban(reason=reason)
+                await interaction.response.send_message(embed=success_embed)
+
+                if logging_channel!=None:
+                    channel=bot.get_channel(logging_channel.get(interaction.guild.id))
+                    await channel.send(f"{member.mention} is banned",embed=success_embed)
+        except:
+            await interaction.response.send_message('I can\'t able to do that!')
 
 # Slient command groups and commands
 
@@ -169,6 +207,7 @@ async def slient_kick(interaction: discord.Interaction,member: discord.Member, r
         description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** *{reason}*",
         color=discord.Color.green()
     )
+    success_embed.set_author(icon_url=interaction.guild.icon,text=f"{interaction.guild.name} • Kicked at {discord.datetime.now()}")
 
     #get role id from mod_roles dict
     role_id = mod_roles.get(interaction.guild.id)
