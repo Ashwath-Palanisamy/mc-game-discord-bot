@@ -226,6 +226,33 @@ async def slient_kick(interaction: discord.Interaction,member: discord.Member, r
     else:
         await interaction.response.send_message("Ask Server owner to set mod role first!")
 
+
+#slient Ban command
+@slient.command(name='ban',description='Ban the user from the server')
+async def slient_ban(interaction: discord.Interaction,member: discord.Member,reason: str):
+    role_id = mod_roles.get(interaction.guild.id)
+
+    success_embed = discord.Embed(
+        title='Member Banned [Slient]',
+        description=f'{member.mention} is Banned by {interaction.user}\n\n**Reason:** *{reason}*',
+        color=discord.Color.green()
+    )
+    success_embed.set_footer(text=f'User id: {member.id} • Banned at {discord.datetime.now()}')
+
+    
+    if role_id is not None:
+        try:
+            mod_role= interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
+                await member.ban(reason=reason)
+                await interaction.response.send_message(embed=success_embed)
+
+                if logging_channel!=None:
+                    channel=bot.get_channel(logging_channel.get(interaction.guild.id))
+                    await channel.send(f"{member.mention} is banned",embed=success_embed)
+        except:
+            await interaction.response.send_message('I can\'t able to do that!')
+
 #adding group
 bot.tree.add_command(slient)
 
