@@ -1,6 +1,6 @@
 # 🛡️ Discord Moderation Bot (Python)
 
-moderation bot for Discord servers—built in Python with essential tools for server management. Just add your bot token and you're ready to go.
+moderation bot for Discord servers—built in Python with essential tools for server management.
 
 ---
 
