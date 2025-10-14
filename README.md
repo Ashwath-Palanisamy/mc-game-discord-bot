@@ -36,3 +36,7 @@ pip install -r requirements.txt
 Open main.py
 create bot.txt in the same folder
 paste your bot token in bot.txt file
+
+or
+
+remove the file opening and add your token there 
