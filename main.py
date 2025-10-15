@@ -127,8 +127,11 @@ async def greatest_captain(interaction:discord.Interaction):
 @bot.tree.command(name='announcement', description='Make an announcement')
 async def announce(interaction: discord.Interaction, channel: discord.TextChannel, *,message: str, mention_everyone: bool):
 
-    #embeds
+#use /n to sepreate lines
+    message = message.replace('\\n', '\n')
 
+    #embeds
+    
     success_embed= discord.Embed(
         title=f'Success!',
         description=f'Announcement made successful in {channel.mention}',
