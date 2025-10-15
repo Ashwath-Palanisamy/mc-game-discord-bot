@@ -84,7 +84,8 @@ async def logging(interaction: discord.Interaction,channel: discord.TextChannel)
     fail_embed.set_footer(icon_url=interaction.guild.icon,text=interaction.guild.name)
 
     role_id = mod_roles.get(interaction.guild.id)
-    if any(role.id == role_id for role in interaction.user.roles):
+    mod_role = interaction.guild.get_role(role_id)
+    if mod_role in interaction.user.roles:
         logging_channel[interaction.guild.id] = channel.id
 
         #after logging channel is set
@@ -99,6 +100,15 @@ async def logging(interaction: discord.Interaction,channel: discord.TextChannel)
         await channel.send(embed=logging_send_embed)
     else:
         await interaction.response.send_message(embed=fail_embed)
+
+@settings.command(name='show-log-channel',description='Shows the current log channel',)
+async def show_log_channel(interaction: discord.Interaction):
+    id = logging_channel.get(interaction.guild.id)
+    if id:
+        await interaction.response.send_message(f'Current log channel is <#{id}>')
+    else:
+        await interaction.response.send_message("No log channel is set for this server.")
+
         
 #adding the group
 bot.tree.add_command(settings)
@@ -112,6 +122,67 @@ async def setting(interaction: discord.Interaction):
 @bot.tree.command(name='captain')
 async def greatest_captain(interaction:discord.Interaction):
     await interaction.response.send_message(f"The Greatest captain is always <@1014804950167080960>")
+
+#announcement command
+@bot.tree.command(name='announcement', description='Make an announcement')
+async def announce(interaction: discord.Interaction, channel: discord.TextChannel, *,message: str, mention_everyone: bool):
+
+#use /n to sepreate lines
+    message = message.replace('\\n', '\n')
+
+    #embeds
+    
+    success_embed= discord.Embed(
+        title=f'Success!',
+        description=f'Announcement made successful in {channel.mention}',
+        color=discord.Color.green(),
+        timestamp=discord.datetime.now(),
+    )
+
+    announce_embed= discord.Embed(
+        title=f"Announcement!",
+        description=message,
+        color=discord.Color.green(),
+        timestamp=discord.datetime.now(),
+    )
+
+    announce_embed.set_author(name=f"Announcement By {interaction.user.top_role} {interaction.user.display_name}")
+    announce_embed.set_footer(icon_url=interaction.guild.icon,text=f"{interaction.guild.name}")
+
+    log_embed = discord.Embed(
+        title=f'Announcement made by {interaction.user.top_role} {interaction.user.display_name}',
+        description=message,
+        color=discord.Color.blue(),
+        timestamp=discord.datetime.now(),
+    )
+
+    if mention_everyone == False:
+        log_embed.set_footer(text='No mention')
+    else:
+        log_embed.set_footer(text="Mentioned")
+    
+
+    role_id = mod_roles.get(interaction.guild.id)
+    if role_id is not None:
+        mod_role= interaction.guild.get_role(role_id)
+        if mod_role in interaction.user.roles:
+
+            if mention_everyone == True:
+                mention=discord.AllowedMentions(everyone=True,users=True)
+                await channel.send('@everyone',embed=announce_embed,allowed_mentions=mention)
+            else:
+                mention = discord.AllowedMentions(users=True)
+                await channel.send(embed=announce_embed,allowed_mentions=mention)
+            await interaction.response.send_message(embed=success_embed)
+
+            #logging
+            if logging_channel!=None:
+                log_channel = bot.get_channel(logging_channel.get(interaction.guild.id))
+                await log_channel.send(f"{interaction.user.display_name} made an announcement in {channel.mention}",embed=log_embed)
+        else:
+            await interaction.response.send_message("You can't able to do that!")
+    else:
+        await interaction.response.send_message("Set moderator role first!")
 
 #kick command 
 
@@ -137,7 +208,8 @@ async def kick(interaction: discord.Interaction,member: discord.Member,reason: s
 
     if role_id is not None: 
         try:
-            if any(role.id == role_id for role in interaction.user.roles):
+            mod_role = interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
                 try:
                     await member.send(embed=info_embed)
                 except Exception as e:
@@ -156,6 +228,42 @@ async def kick(interaction: discord.Interaction,member: discord.Member,reason: s
     else:
         await interaction.response.send_message("Ask server owner to set mod role first!")
 
+#Ban command
+@bot.tree.command(name='ban',description='Ban the user from the server')
+async def ban(interaction: discord.Interaction,member: discord.Member,reason: str):
+    role_id = mod_roles.get(interaction.guild.id)
+
+    success_embed = discord.Embed(
+        title='Member Banned',
+        description=f'{member.mention} is Banned by {interaction.user}\n\n**Reason:** *{reason}*',
+        color=discord.Color.green()
+    )
+    success_embed.set_footer(text=f'User id: {member.id} • Banned at {discord.datetime.now()}')
+
+    info_embed=discord.Embed(
+        title=f'Banned from {interaction.guild.name}',
+        description=f"You have been banned from {interaction.guild.name}\n\n**Reason:** *{reason}*",
+        color=discord.Color.blue(),
+        timestamp=discord.datetime.now()
+    )
+    info_embed.set_footer(icon_url=interaction.guild.icon,text=f"{interaction.guild.name}")
+
+    if role_id is not None:
+        try:
+            mod_role= interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
+                try:
+                    await member.send(embed=info_embed)
+                except Exception as e:
+                    await interaction.followup.send("Failed to send dm info, Forbidden 403")
+                await member.ban(reason=reason)
+                await interaction.response.send_message(embed=success_embed)
+
+                if logging_channel!=None:
+                    channel=bot.get_channel(logging_channel.get(interaction.guild.id))
+                    await channel.send(f"{member.mention} is banned",embed=success_embed)
+        except:
+            await interaction.response.send_message('I can\'t able to do that!')
 
 # Slient command groups and commands
 
@@ -169,6 +277,7 @@ async def slient_kick(interaction: discord.Interaction,member: discord.Member, r
         description=f"Member {member.mention} has been kick by {interaction.user}\n**Reason:** *{reason}*",
         color=discord.Color.green()
     )
+    success_embed.set_author(icon_url=interaction.guild.icon,text=f"{interaction.guild.name} • Kicked at {discord.datetime.now()}")
 
     #get role id from mod_roles dict
     role_id = mod_roles.get(interaction.guild.id)
@@ -186,6 +295,33 @@ async def slient_kick(interaction: discord.Interaction,member: discord.Member, r
             await interaction.response.send_message("You do not have Moderator role!")
     else:
         await interaction.response.send_message("Ask Server owner to set mod role first!")
+
+
+#slient Ban command
+@slient.command(name='ban',description='Ban the user from the server')
+async def slient_ban(interaction: discord.Interaction,member: discord.Member,reason: str):
+    role_id = mod_roles.get(interaction.guild.id)
+
+    success_embed = discord.Embed(
+        title='Member Banned [Slient]',
+        description=f'{member.mention} is Banned by {interaction.user}\n\n**Reason:** *{reason}*',
+        color=discord.Color.green()
+    )
+    success_embed.set_footer(text=f'User id: {member.id} • Banned at {discord.datetime.now()}')
+
+    
+    if role_id is not None:
+        try:
+            mod_role= interaction.guild.get_role(role_id)
+            if mod_role in interaction.user.roles:
+                await member.ban(reason=reason)
+                await interaction.response.send_message(embed=success_embed)
+
+                if logging_channel!=None:
+                    channel=bot.get_channel(logging_channel.get(interaction.guild.id))
+                    await channel.send(f"{member.mention} is banned",embed=success_embed)
+        except:
+            await interaction.response.send_message('I can\'t able to do that!')
 
 #adding group
 bot.tree.add_command(slient)
